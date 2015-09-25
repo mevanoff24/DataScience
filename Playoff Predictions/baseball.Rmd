@@ -1,0 +1,514 @@
+# Baseball Stats
+## Predicting Playoff Teams
+In this project we can analyze Baseball Data perform exploratory data analysis and and eventually predict statistics to influence playoff appearances. This project is especially important to me as I have played baseball my entire life, played in high school, played at UC Berkeley in college, and am a die-hard San Francisco Giants fan. So this data and project is close to my heart.
+```{r library, results='hide'}
+# load initial dependancies 
+setwd("~/Desktop/DataScientist/Projects")
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(caTools)
+library(caret)
+library(corrplot)
+library(ROCR)
+library(memisc)
+library(rpart)
+library(rpart.plot)
+library(MASS)
+library(gbm)
+```
+
+The data comes from the Lahman’s Baseball Database. We can download the zipfile from the internet and unzip it and extract the files we desire.
+```{r}
+# Baseball Zip File Url
+url <- 'http://seanlahman.com/files/database/lahman-csv_2015-01-24.zip'
+# create a temp file
+temp <- tempfile()
+# fetch the file into the temp. file and download it
+download.file(url, temp)
+# extract the target file from temp. file
+teams <- read.csv(unz(temp, 'Teams.csv'))
+salaries <- read.csv(unz(temp, 'Salaries.csv'))
+```
+
+Clean up the data, making previous team names and cities match the newer one
+```{r}
+teams$teamID[teams$teamID == 'CAL'] <- 'LAA'
+teams$teamID[teams$teamID == 'FLO'] <- 'MIA'
+teams$teamID[teams$teamID == 'ML4'] <- 'MIL'
+teams$teamID[teams$teamID == 'MON'] <- 'WAS'
+teams$teamID[teams$teamID == 'ANA'] <- 'LAA'
+```
+
+Since we are going to predict whether or not a team will make the playoffs we need to add that column to the teams data frame
+```{r}
+# new column to display if team made playoffs
+# already column is team won division but need to add wild card teams
+teams$Playoff <- teams$DivWin
+# this only adds the the division winners so we need to also add the wild card winners
+teams$Playoff[teams$WCWin == 'Y'] <- 'Y'
+# convert Playoff to factor 
+teams$Playoff <- factor(teams$Playoff)
+```
+
+Subset data to only include wild card teams 
+- The wilcard was introduced in 1995 but in year 1995 every team played less than 146 games so we decided to drop this year and use 1996 as the cut off. Now all teams have the same amount of seasons 19 seasons except the Arizona Diamondbacks and the Tampa Bay Rays since neither of these teams were introduced into the league until 1997 
+```{r}
+wildcard_era_teams <- teams[teams$yearID >= 1995, ]
+table(wildcard_era_teams$G == 144, wildcard_era_teams$yearID)
+# use 1996 as cutoff
+with(wildcard_era_teams, table(yearID == 1995, G))
+wildcard_era_teams <- teams[teams$yearID >= 1996, ]
+```
+## Exploratory Data Analysis
+
+#### Histogram of Win Counts and line at mean and median
+Since we will eventually predict Playoff teams, first we want to look into what makes a playoff team. The factor the relates to Playoff appearances is wins, so we will look at the distribution of wins and discove on average how many wins a team need to make their way into October
+```{r WinCount, fig.align='center'}
+ggplot(subset(wildcard_era_teams, Playoff == 'Y'), aes(W)) + 
+    geom_histogram(fill = 'light blue', color = 'black', binwidth = 1) + 
+    geom_vline(xintercept = mean(wildcard_era_teams$W[wildcard_era_teams$Playoff == 'Y']), color = 'red', linetype = 'longdash') +
+    geom_vline(xintercept = median(wildcard_era_teams$W[wildcard_era_teams$Playoff == 'Y']), color = 'green', linetype = 'longdash') +
+    xlab('Frequency') + ylab('Wins') +
+    ggtitle('Histogram of Win Counts\nWith lines at mean and median')
+```
+Since the data is normally distributed the mean and median will be about the same
+
+#### Histogram to show Wins and Playoff Appearances
+We can now investigate this mean and median values and determine if it will be suitable to use as a cutoff for playoff teams 
+```{r, histogramWins, fig.width=8, fig.height=5, fig.align='center'}
+ggplot(wildcard_era_teams, aes(W, color = Playoff)) + 
+    geom_histogram(position = 'dodge', binwidth = 2) +
+    coord_cartesian(xlim=c(50,120)) +
+    geom_vline(xintercept = 94, linetype = 2) +
+    xlab('Wins') + ylab('Count') +
+    ggtitle('Histogram of Wins Sorted By Playoff Appearance\nWith line at mean of 94')
+```
+As we can tell from the graph, we do happen to have one team that diddn't make the playoffs, but we will ignore this team since our accuracy is still 99.8%. So we can use 94 wins as our 
+cutoff to classify a team as a playoff team for that season
+```{r}
+# only care about that lonely one team with the True Positive within the cunfusion matrix
+table(wildcard_era_teams$W > 94, wildcard_era_teams$Playoff == 'N')
+paste0("With an accuracy of ", round(407 /(407 + 1), 3))
+# And looking at the data further
+over94_no_playoff <- wildcard_era_teams[(wildcard_era_teams$W >= 94) & 
+                                            (wildcard_era_teams$Playoff == 'N'), ]
+paste0("Team with 96 wins and didn't make playoffs is The ", over94_no_playoff$name)
+```
+
+#### Plot Team Wins and Playoff Appearance
+We can see this with another plot of Wins vs Teams colored by Playoff appearances and this really highlights the '99 Reds and real Playoff Teams
+```{r teamWin, fig.width=8, fig.height=6, fig.align='center'}
+# plot to show team wins and playoff appearance
+ggplot(wildcard_era_teams, aes(teamID, W, color = Playoff)) + geom_point() + 
+    theme(axis.text.x = element_text(angle = 45)) +
+    xlab('Team') + ylab('Wins') + 
+    geom_hline(yintercept = 94, linetype = 2) +
+    ggtitle('Wins By Team Colored By Playoffs Appearances')
+```
+
+#### Plot for Wins Per Year Per Team
+We can make a line plot statified by League and Division to display the distribution of wins per year
+```{r WinYear, fig.width=9, fig.height=7, fig.align='center'}
+# summarize new data extracing out desired columns
+team_wins <- wildcard_era_teams %>%
+    group_by(teamID, yearID, lgID, divID, Playoff) %>%
+    summarise(W = W) %>%
+    ungroup() %>%
+    arrange(teamID)
+
+nl <- ggplot(subset(team_wins, (lgID == 'NL')), aes(yearID, W)) + 
+        geom_line(aes(color = teamID)) +
+        facet_wrap(~ divID, nrow = 3) +
+        xlab('Year') + ylab('Wins') +
+        ylim(50,100) +
+        ggtitle('Wins By Year - National League')
+al <- ggplot(subset(team_wins, (lgID == 'AL')), aes(yearID, W)) + 
+        geom_line(aes(color = teamID)) +
+        facet_wrap(~ divID, nrow = 3) +
+        ylim(50,100) +
+        xlab('Year') + ylab('') +
+        ggtitle('Wins By Year -  American League')
+
+grid.arrange(nl, al, ncol = 2, name = 'Wins By Year Per League and Divison' )
+```
+
+#### Boxplot for Wins
+This plot better represents the data. In this boxplot you can see how rare it was for some teams to actually make the playoffs in some certain years and how common it was for some teams to make the playoffs. We can plot a black dashed line at the 94 wins where you were 99.8% likely to make the playoffs and we can also plot another red line at 88 wins where you had a 94% chance of making the playoffs 
+```{r boxplot, fig.align='center'}
+ggplot(wildcard_era_teams, aes(teamID, W)) + 
+    geom_boxplot(fill = 'blue') + 
+    geom_hline(yintercept = 94, linetype = 2, color = 'black') +
+    geom_hline(yintercept = 88, linetype = 2, color = 'red') + 
+    theme(axis.text.x = element_text(angle = 90)) +
+    xlab('Team Name') + ylab('Wins') +
+    ggtitle('Boxplots of Teams vs Wins')
+```
+This is a very interesting graph as you can see some of the outlier seasons for teams where a team made the playoffs where they tipically do not, like PIT and CIN. In contrast, you can see teams that continually make the playoffs, like NY Yankees and ATL. And also the teams that really haven't been close to being playoff bound throughout these years, like MIA and TOR. 
+
+## Predictions
+
+Now we need to use EDA to see what varibles contribute to wins and hence making the playoffs. First we will add some other variables including Batting Average, On Base Percentage and Slugging Percentage to our wilcard era team data frame. We also add run differtial which we will explore later
+```{r}
+# transform NA for sac flies and hit by pitches to O so can compute correlation matrix 
+wildcard_era_teams$SF[is.na(wildcard_era_teams$SF)] <- 0
+wildcard_era_teams$HBP[is.na(wildcard_era_teams$HBP)] <- 0
+# new column for team Batting Average
+wildcard_era_teams$BA <- wildcard_era_teams$H / wildcard_era_teams$AB
+# new column for team On-Base Percentage
+# this will return NA for seasone beofre HBP was actually recorded but this will not affect the analysis
+wildcard_era_teams <- transform(wildcard_era_teams, OBP = (H + BB + HBP) / 
+                                   (AB + BB + HBP + SF))
+
+# new column for team Slugging Percentage
+wildcard_era_teams <- transform(wildcard_era_teams, SLG = (H + X2B + (2 * X3B) + 
+                                                               (3 * HR)) / AB)
+wildcard_era_teams <- transform(wildcard_era_teams, OPS = OBP + SLG)
+# new column for run differential  
+wildcard_era_teams$Diff <- wildcard_era_teams$R - wildcard_era_teams$RA
+```
+
+So alos we have a new different data frame with each players salary and the respective year. We can now subset the salary data and use merge to combine teams salaries to the wildcard era teams data.
+```{r}
+#subset same years for salary
+wildcard_era_salaries <- salaries[salaries$yearID >= 1996, ]
+# pick out desired columns to perform merge
+team_salaries <- wildcard_era_salaries %>%
+    group_by(teamID, yearID) %>%
+    summarise(Salary = sum(salary)) %>%
+    ungroup() %>%
+    arrange(teamID)
+wildcard_era_teams <- merge(wildcard_era_teams, team_salaries, by = c('teamID', 'yearID'))
+```
+
+#### Train Test Split
+Split wilcard era teams before looking at predictions for playoff teams
+```{r}
+set.seed(101)
+split <- sample.split(wildcard_era_teams$Playoff, 0.8)
+train <- subset(wildcard_era_teams, split == TRUE)
+test <- subset(wildcard_era_teams, split == FALSE)
+dim(train)
+```
+
+#### Corelation
+There are obviously a lot of independant variables that are correlated with one another since baseball stats have alot to do with one another.
+```{r corplot, fig.width=9, fig.height=9, fig.align='center'}
+# subset data to only include numeric and integer variables
+nums <- sapply(train, is.numeric) | sapply(train, is.integer)
+# create data frame for correlation
+train_nums <- train[,nums]
+# exclude unwanted variables
+train_nums <- train_nums[,-which(names(train_nums) %in% c('yearID', 'Rank', 'G', 'Ghome', 'IPouts', 'attendance', 'BPF', 'PPF'))]
+#compute correlation matrix
+corMatrix <- cor(train_nums)
+# plot matrix
+corrplot(corMatrix, method = "circle", type="lower", tl.cex=0.55, cl.cex = 0.5, add = FALSE, tl.pos="lower")
+corrplot(corMatrix, method = "shade", type="upper", tl.cex=0.55, cl.cex = 0.5, add = TRUE, tl.pos="upper")
+```
+
+To make predictions on Playoffs, a team needs to have a lot of wins, and for a team to win, they need to have a good run score more than the give up, and to have a good run differential, they need to have good hitting, and need to have good pitching and defense. So really almost every variable can potentailly predict Playoff appearances(which is why I love baseball) 
+
+#### Plot Runs and Runs Against by Wins
+So to predict Playoff appearances, we have to predict wins. The most obvious and first variable to look at would be Runs and Runs against
+```{r plots, fig.width=12, fig.align='center'}
+# plot wins vs runs
+p1 <- ggplot(train, aes(W, R)) + geom_point(aes(color = Playoff)) + 
+        xlab('Wins') + ylab('Runs') +
+        ggtitle('Wins Per Runs\ncolored by Playoff Teams')
+# plot wins vs runs given up
+p2 <- ggplot(train, aes(W, RA)) + geom_point(aes(color = Playoff)) + 
+        xlab('Wins') + ylab('Runs Against') +
+        ggtitle('Wins Per Runs Against\n colored by Playoff Teams')
+
+grid.arrange(p1, p2, ncol = 2)
+```
+
+#### Plot Run Differential
+Now we can combine these to predictors. New created predictor where we took the difference between runs scored and runs allowed to better represent the data. This new column is called Diff caluculated previously
+```{r rundiff, fig.align='center'}
+ggplot(train, aes(W, Diff)) + geom_point(aes(color = Playoff)) + 
+    xlab('Wins') + ylab('Difference in Runs (R - RA)') +
+    ggtitle('Wins Per Runs Diffential\n colored by Playoff Teams')
+```
+
+#### Hitting Plots
+Now since Wins and Runs are very obvious in predicting Playoffs we need to look at real baseball stats that predict Runs, so we can pick out some varibales to explore them further
+```{r battingstatplots, fig.width=9, fig.height=9, fig.align='center'}
+p1 <- ggplot(train, aes(R, BA)) + 
+    geom_point(aes(color = W)) + 
+    scale_fill_discrete(name = 'Wins') +
+    xlab('Runs') + ylab('Batting Average') +
+    ggtitle(paste0('Runs by Batting Average\n Stratified by Wins\n Corelation: ', 
+                   round(cor(train_nums$R, train_nums$BA), 3)))
+p2 <- ggplot(train, aes(R, OBP)) + 
+    geom_point(aes(color = W)) + 
+    scale_fill_discrete(name = 'Wins') +
+    xlab('Runs') + ylab('On Base Percentage') +
+    ggtitle(paste0('Runs by On Base Percentage\n Stratified by Wins\n Corelation: ', 
+                   round(cor(train_nums$R, train_nums$OBP), 3)))
+p3 <- ggplot(train, aes(R, SLG)) + 
+    geom_point(aes(color = W)) + 
+    scale_fill_discrete(name = 'Wins') +
+    xlab('Runs') + ylab('Slugging Percentage') +
+        ggtitle(paste0('Runs by Slugging Percentage\n Stratified by Wins\n Corelation: ', 
+                   round(cor(train_nums$R, train_nums$SLG), 3)))
+p4 <- ggplot(train, aes(R, HR)) + 
+    geom_point(aes(color = W)) + 
+    scale_fill_discrete(name = 'Wins') +
+    xlab('Runs') + ylab('Home Runs') +
+    ggtitle(paste0('Runs by Home Runs\n Stratified by Wins\n Corelation: ', 
+                   round(cor(train_nums$R, train_nums$HR), 3)))
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+#### Plot On-Base Plus Slugging
+We can do one better with OBP and SLG and combine them both, since in the last few years in baseball they have started to calculate (On Base Percentage Plus Slugging), OPS.
+```{r OPS, fig.align='center'}
+ggplot(train, aes(R, OPS)) + 
+    geom_point(aes(color = W)) + 
+    scale_fill_discrete(name = 'Wins') +
+    xlab('Runs') + ylab('On Base Plus Slugging') +
+    ggtitle(paste0('Runs by On Base Plus Slugging\n Stratified by Wins\n Corelation: ', 
+                   round(cor(train_nums$R, train_nums$OPS), 3)))
+```
+So the best single variable to predict Runs in On-Base Plus Sluggling. Which is interesting and it has to make us wonder if doing statistical analysis like this and determining that OBP and SLG were two of the most important factors and it just made sense to combine the two together into one comprehensible predoctor. So did analysis add a new basbeall stat?
+
+#### Pitching and Defense Plots
+Now we can look at the other side of the spetrum. It is always said that pitching and defense wins Championships(definitely the fact for the SF Giants!), so we can look at that. We can look at Runs Against instead of Runs here.
+```{r pitchingdefensestatplots, fig.width=9, fig.height=9, fig.align='center'}
+p1 <- ggplot(train, aes(RA, ERA)) + 
+    geom_point(aes(color = W)) + 
+    scale_fill_discrete(name = 'Wins') +
+    xlab('Runs Against') + ylab('Earned Run Average') +
+    ggtitle(paste0('Runs Against by ERA\n Stratified by Wins\n Corelation: ', 
+                   round(cor(train_nums$RA, train_nums$ERA), 3)))
+p2 <- ggplot(train, aes(RA, SO)) + 
+    geom_point(aes(color = W)) + 
+    scale_fill_discrete(name = 'Wins') +
+    xlab('Runs Against') + ylab('Strike Outs') +
+    ggtitle(paste0('Runs Against by Strike Outs\n Stratified by Wins\n Corelation: ', 
+                   round(cor(train_nums$RA, train_nums$SO), 3)))
+p3 <- ggplot(train, aes(R, HA)) + 
+    geom_point(aes(color = W)) + 
+    scale_fill_discrete(name = 'Wins') +
+    xlab('Runs Against') + ylab('Hits Against') +
+        ggtitle(paste0('Runs Against by Hits Allowed\n Stratified by Wins\n Corelation: ', 
+                   round(cor(train_nums$RA, train_nums$HA), 3)))
+p4 <- ggplot(train, aes(RA, E)) + 
+    geom_point(aes(color = W)) + 
+    scale_fill_discrete(name = 'Wins') +
+    xlab('Runs Against') + ylab('Errors') +
+    ggtitle(paste0('Runs Against by Errors\n Stratified by Wins\n Corelation: ', 
+                   round(cor(train_nums$RA, train_nums$E), 3)))
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+Obviously ERA is the king of all pitching stats, so it will be the most important here and interesting enough Errors wasn't as associated with Runs Against as was expected. 
+
+#### Plot Team Salary
+Maybe you can pay for wins and Playoff Apearances so we can also plot Wins By Salary per year
+```{r baseball, fig.width=9, fig.height=9, fig.align='center'}
+ggplot(train, aes(W, Salary)) + geom_point(aes(color = Playoff)) +
+    facet_wrap(~ yearID) + 
+    xlab('Runs') + ylab('Team Salary') +
+    ggtitle('Total Wins By Salary')
+```
+Can also look at the correlation and it is not as high as we might think, so you really can't pay for wins in MLB today, which was truely brought to life by Billy Bean with the A's many years ago
+```{r}
+cor(train$W, train$Salary)
+```
+
+### Regression
+Its cheating to just use Wins or Runs or Run Differential to use in our model as it is obvious that these will predict Playoff appearances. So since we need to use on field stats to predict, we will not use these attributes and actually look at real baseball stats to predict whether or not a team will make the Playoffs. 
+#### Logistic Regression 
+We can use simple Logistic Regression from predictions on the training set
+```{r}
+binary_train <- train
+# change Playoff to 1 for Y and 0 for N to work with ROCR
+binary_train$Playoff <- ifelse(binary_train$Playoff == 'Y', 1, 0)
+# fit multiple
+glmfit1 <- glm(Playoff ~ OPS, data = binary_train, family = binomial)
+glmfit2 <- glm(Playoff ~ OPS + ERA, data = binary_train, family = binomial)
+glmfit3 <- glm(Playoff ~ OPS + ERA + E, data = binary_train, family = binomial)
+glmfit4 <- glm(Playoff ~ OPS + ERA + E + Salary, data = binary_train, family = binomial)
+glmfit5 <- glm(Playoff ~ OPS + SF + SO + HA + RA + SV + BBA + DP + HRA + HR + AB + R + ER + X2B + H + SB + BB + HBP + SOA + E + SHO + OBP + Salary + SLG + X3B + CG + BA + CS + OPS + ERA, data = binary_train, family = binomial)
+```
+Bias - Varience trade-off. The last model we just threw all the variables into the model to just look at the result, however we would not really be interested in this model as it is not very interpretable model and need to only select certain subset of varibles
+
+#### Baseline for Model
+Therefore our baseline prediction would be No Playoffs with an accuracy of 0.7099057
+```{r}
+with(train, table(Playoff))
+```
+
+Functions to evaluate our Logistic Reegression models for convience and vector of accuracy and area under the curve for the models
+```{r}
+EvalModelCF <- function(model) {
+    pred <- predict(model, type = 'response')
+    return(sum(diag(table(pred > 0.5, binary_train$Playoff))) / nrow(binary_train))      
+}
+EvalModelAUC <- function(model) {
+    pred <- predict(model, type = 'response')
+    ROCRpred <- prediction(pred, binary_train$Playoff)
+    return(as.numeric(performance(ROCRpred, 'auc')@y.values))
+}
+# predict on training set CF
+c(EvalModelCF(glmfit1), EvalModelCF(glmfit2), EvalModelCF(glmfit3), EvalModelCF(glmfit4), EvalModelCF(glmfit5))
+# predict on training set AUC
+c(EvalModelAUC(glmfit1), EvalModelAUC(glmfit2), EvalModelAUC(glmfit3), EvalModelAUC(glmfit4), EvalModelAUC(glmfit5))
+```
+Even when we put all of our variables into our model, we only get an slight increase in predictive performace, so simplier is better. Therefore, our best model for Logistic Regression would be our simple OPS + ERA
+
+#### Linear Discrimatory Analysis
+We can also try to use linear discrimatory analysis, and return a vector of the confusion matrix accuracy
+```{r}
+ldafit1 <- lda(Playoff ~ OPS + ERA, data = binary_train)
+ldafit2 <- lda(Playoff ~ OPS + ERA + BB + HA + BBA, data = binary_train)
+Evallda <- function(model) {
+    pred <- predict(model)
+    lda.class <- pred$class
+    return(sum(diag(table(lda.class, binary_train$Playoff)))/nrow(binary_train))
+}
+c(Evallda(ldafit1), Evallda(ldafit2))
+```
+
+#### Decision Tree
+We then can use a decision tree. Decison Tress typically aren't highly predictive, but the are excellent for easy interpretabiltiy and even non-analysists can comprehend the plot. We first use cross validation to set the cp parameter to better create our tree 
+```{r decisiontree, fig.align='center'}
+set.seed(321)
+numFolds <- trainControl(method = 'cv', number = 10)
+cpGrid <- expand.grid(.cp = seq(0.001, 0.05, 0.001))
+best_cp <- train(Playoff ~ ., data = binary_train, method = 'rpart', trControl = numFolds, tuneGrid = cpGrid)
+CARTfit <- rpart(Playoff ~ OPS + SF + SO + HA + RA + SV + BBA + DP + HRA + HR + AB + R + ER + X2B + H + SB + BB + HBP + SOA + E + SHO + OBP + Salary + SLG + X3B + CG + BA + CS + OPS + ERA, data = binary_train, method = 'class', cp = best_cp$bestTune)
+# plot tree  
+prp(CARTfit)
+```
+As we can see from the tree, the most important and first split is era, and you can work your way down the branches of the tree to really determine what factors contribute to Playoff teams. Note - 1 = Playoffs, 2 = NO Playoffs
+
+We can evaluate the prediction accuracy on the training set for our decision tree
+```{r}
+# predict on training set
+trainPredCART <- predict(CARTfit)
+# prediction accuracy 
+table(trainPredCART[,2] > 0.5, binary_train$Playoff)
+sum(diag(table(trainPredCART[,2] > 0.5, binary_train$Playoff))) / nrow(binary_train)
+# AUC 
+ROCRpredCART <- prediction(trainPredCART[,2], binary_train$Playoff)
+as.numeric(performance(ROCRpredCART, 'auc')@y.values)
+```
+We get a decent result, not as good as our Logistic Regression, but that wasn't expected and we get a great output graph here.
+
+#### Gradient Boosting Machine
+We could again use a random forrest or gradient boosting like we do below to increase our prediction accuracy to actually obtain 100% accuracy on the training set. However, again we would rather have a more interpretable less accurate model rather than a complex higher one
+```{r}
+set.seed(3)
+boostfit <- gbm(Playoff ~ OPS + ERA + SF + SO + HA + BBA + DP + HRA + HR + AB + X2B + H + SB + BB + HBP + SOA + E + SHO + Salary + X3B + CG + BA + CS, data = binary_train, distribution="bernoulli", n.trees=5000, interaction.depth=4, shrinkage =0.2)
+ # training accuracy CF
+boostpred <- predict(boostfit, n.trees = 5000)
+table(boostpred > 0.5, binary_train$Playoff)
+sum(diag(table(boostpred > 0.5, binary_train$Playoff)))/nrow(binary_train)
+# AUC
+ROCRpredBoost <- prediction(boostpred, binary_train$Playoff)
+as.numeric(performance(ROCRpredBoost, 'auc')@y.values)
+```
+As you can see we get perfect predictions with our training set, when we pass in many variables
+
+Interesting enough we can actually look at the varibale importantance summary from the boosting model and can see that the two most important variables are ERA and OPS, just as we had expected from our previous analysis
+```{r}
+summary(boostfit)
+```
+
+#### Updating Logistic Regression
+After seeing this we can produce a new logistic regression and try to add the top 5 predictors form the Gradient Boosting Machine. The first number in the vector is the confusion matrix accuracy and the next is the the auc
+```{r}
+glmfit6 <- glm(Playoff ~ OPS + ERA + BB + HA + BBA, data = binary_train, family = binomial)
+c(EvalModelCF(glmfit6), EvalModelAUC(glmfit6))
+```
+This is now our best interpretable model so we can now use it and can look at our coefficients for our model
+```{r}
+glmfit6$coefficients
+```
+
+For convenience we create new varibales to predict on our testing set.
+```{r}
+best_model_glm <- glmfit6
+best_model_lda <- ldafit1
+best_model_tree <- CARTfit
+best_model_boost <- boostfit
+```
+
+## Evaluating our Models on Test Set
+First we need to create our binary test set, like we did for our training set.
+```{r}
+binary_test <- test
+# change Playoff to 1 for Y and 0 for N
+binary_test$Playoff <- ifelse(binary_test$Playoff == 'Y', 1, 0)
+```
+#### Logistic Regression Test Predictions
+Here we get a test accuracy of 0.8584906 and auc of 0.9212903, only a couple of percentage point lower than our training set predictions, meaning that our model did not overfit the data
+```{r}
+predTestglm <- predict(best_model_glm, newdata = binary_test, type = 'response')
+
+table(predTestglm > 0.5, binary_test$Playoff)
+sum(diag(table(predTestglm > 0.5, binary_test$Playoff))) / nrow(binary_test)
+
+ROCRpredglm <- prediction(predTestglm, binary_test$Playoff)
+as.numeric(performance(ROCRpredglm, 'auc')@y.values)
+```
+#### Linear Discriminant Test Predictions
+Here we get accuracy of 0.8490566, a few points lower than logistic regression
+```{r}
+predTestlda <- predict(best_model_lda, newdata = binary_test)
+
+table(predTestlda$class, binary_test$Playoff)
+sum(diag(table(predTestlda$class, binary_test$Playoff))) / nrow(binary_test)
+```
+#### Decision Tree Test Predictions
+With our tree we get a lower accuracy of 0.8018868, and area under the curve of 0.9028982, which is not bad for a decision tree, but a very convenient graphic
+```{r}
+predTestCART <- predict(best_model_tree, newdata = binary_test)
+
+table(predTestCART[,2] > 0.5, binary_test$Playoff)
+sum(diag(table(predTestCART[,2] > 0.5, binary_test$Playoff))) / nrow(binary_test)
+
+ROCRpredlCART <- prediction(predTestCART[,2], binary_test$Playoff)
+as.numeric(performance(ROCRpredCART, 'auc')@y.values)
+```
+#### Gradient Boosting Machine Test Predictions
+Interesting enough, our worst test prediction accuracy was our boosting model, with a confusion matrix accuracy of 0.7641509, and auc of 0.867957. Meaning we really overfit our data in our training set
+```{r}
+predTestboost <- predict(best_model_boost, newdata = binary_test, n.trees = 5000)
+table(predTestboost > 0.5, binary_test$Playoff)
+sum(diag(table(predTestboost > 0.5, binary_test$Playoff))) / nrow(binary_test)
+
+ROCRpredboost <- prediction(predTestboost, binary_test$Playoff)
+as.numeric(performance(ROCRpredboost, 'auc')@y.values)
+```
+### Summary
+So our best model is our Logistic Regression with an 0.8584906 testing prediction accuracy. Interesting enough our gbm only had a 80% on the test set while it had 100% for our training set so a good deal of overfitting was occuring. If we would use our model with all of the variables in it we would definitly obtain a better prediction accuracy with higher variance, but the most important thing for this analysis and baseball teams would be a simple bias effective model. 
+This model consisted of using ERA + OPS + BB + HA + BBA. These may not be the sexiest baseball statistics to strive for, but the numbers never lie. So for all you young athletes out there, remember Earned Run Average and On - Base Percentage are the two best attributes to strive for, and don't forget walks are important as well. 
+
+
+### Extra Fun
+I thought this was really cool how you can create a Spray Chart in R. This chart and data doesn't have any correlation with the analysis from the previous sections, but it was interesting what you can actually do with effective data and R. In this plot I used Detroit's Miguel Cabrera seaons from 2009 - 2012
+```{r spraychart, fig.width=7, fig.height=7, fig.align='center'}
+load("balls_strikes_count.Rdata")
+# create bases for graph
+bases <- data.frame(x = c(0, 90/sqrt(2), 0, -90/sqrt(2), 0),
+                    y = c(0, 90/sqrt(2), 2 * 90/sqrt(2), 90/sqrt(2), 0))
+
+p1 <- ggplot(cabrera, aes(hitx, hity)) +
+    geom_point(aes(color = hit_outcome)) +
+    coord_equal() +
+    facet_wrap(~ season)
+p2 <- p1 + geom_path(data = bases, aes(x = x, y = y)) +
+    geom_segment(x = 0, xend = 300, y = 0, yend = 300) +
+    geom_segment(x = 0, xend = -300, y = 0, yend = 300) +
+    xlab('') + ylab('') +
+    ggtitle('Miguel Cabrera Spray Chart')
+p2
+```
+
+

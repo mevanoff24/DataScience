@@ -1,0 +1,496 @@
+# Analyze the New York Subway System
+
+In this project I will be analyizing MTA New York City Subway data taken from the month of May in the year 2011. This MTA data contains hourly entries and exits to turnstiles in the subway system. I have also joined weather information gathered from [Weather Underground](http://www.wunderground.com/) containing features such as temperature, barometric pressure, indicators for rain, fog, thunder, the total amount of precipitation, among others. 
+
+I worked on this data subset to draw an interesting conclusion about the dataset itself with the key question of: 
+Do more people ride the subway when it is raining versus when it is not raining.
+
+Data Science Skills Applied:
+
+- Data wrangling
+- Exploratory Data Analysis
+- Statistical Tests
+- Linear Regression 
+- Simple Model Performance
+- Effective Visualization
+- JavaScript D3
+
+### Load Dependancies
+```{r, load dependancies, results="hide"}
+library(dplyr)
+library(ggplot2)
+library(GGally)
+library(scales)
+library(gridExtra)
+library(corrplot) 
+library(stargazer)
+library(stringi)
+library(caret)
+library(caTools)
+```
+## Data Wrangling
+### Read in CSV and Make data more user friendly
+I have already done some data wrangling from the original dataset. I have included the columns 'ENTRIESn_hourly', 'EXITSn_hourly', 'hour', and altering the structure of the date to become more user friendly and have already wrote it back into a new csv file. 
+
+I have decided to transform some of the variables to be easier described and visually more appealing
+```{r}
+turnstile_data <- read.csv('turnstile_weather_v2.csv')
+# turn date into POSIX to make easier to work with
+turnstile_data$datetime <- as.POSIXct(turnstile_data$datetime)
+# Add full name of the day of the week instead of day number
+turnstile_data$day_week <- factor(format(turnstile_data$datetime, format = '%A'), 
+                                  levels = c("Monday","Tuesday","Wednesday","Thursday",
+                                             "Friday","Saturday","Sunday"))
+# Also adding day number
+turnstile_data$day_number <- as.numeric(turnstile_data$day_week)
+# Adding formated hour with levels
+turnstile_data$hour_format <- factor(format(turnstile_data$datetime, format = '%I:00 %p'),
+                                     levels = c("04:00 AM", "08:00 AM","12:00 PM",
+                                                "04:00 PM", "08:00 PM", "12:00 AM"))
+# Adding number data for hour_format just created like day number
+turnstile_data$hour_number <- as.numeric(turnstile_data$hour_format)
+# Add strings to fog
+turnstile_data$fog <- factor(turnstile_data$fog, levels=c(0,1), labels=c("No Fog", "Fog"))
+# Add strings to rain
+turnstile_data$rain <- factor(turnstile_data$rain, levels=c(0,1), labels=c("No Rain", "Rain"))
+# Add strings to weekend / weekday
+turnstile_data$weekday <- factor(turnstile_data$weekday, levels=c(0,1), labels=c("Weekend", "Weekday"))
+# Combining date and day of week
+turnstile_data$date_day_week <- factor(format(turnstile_data$datetime,format="%m-%d-%Y:%A"))
+head(turnstile_data)
+```
+##Exploratory Data Analysis
+
+### Correlations
+To further analyze this data and the correlation between varibales I decided to comute their correlation. And instead of just displaying a long table of number that is extremely hard to read, I created a more user friendly corplot.
+```{r}
+# separate only numeric numbers 
+turn_numeric <- turnstile_data[,sapply(turnstile_data, is.numeric)]
+# create correlation matrix
+turnstile_data_corr_matrix <- cor(turn_numeric)
+# plot 
+corrplot(turnstile_data_corr_matrix, method = "ellipse", order="hclust", type="lower", 
+         tl.cex=0.75, add = FALSE, tl.pos="lower") 
+corrplot(turnstile_data_corr_matrix, method = "number", order="hclust", type="upper", 
+         tl.cex=0.75, add = TRUE, tl.pos="upper")
+```
+As expected their aren't too many correlated variables.  Of course like 'meanprecipi' is related with 'precipi' and 'u'weather_lat' and 'latitude', etc are correlated, but nothing else really pops out here.   
+
+### Days of the Week
+Here, I group the total entries of MTA subway. Iniitally these figures make sense, as it is understood that there would be less riderships on the weekends rather than the on the weekdays. But having a little more skepticism I looked more into this and with some common sense, I realized that the data given for this month of May is skewed. All of the days of the week do not have the same amount of entries. In fact, in this month there are 5 day for the month for Sunday, Monday, and Tuesday, with the other days only having 4 days in the month. Another point that I have to make is that Monday the 30th, was Memorial Day and ridership ought to lower. Therefore the total ridership with the Tuesday being the highest makes sence so the data fits the assumptions. The total should be taken with a grain of salt, while the other graph with the average is a better understanding of the true distribution.
+```{r}
+# Using dplyr and the split apply combine functionality I can create day of week and entries for that day
+Day_of_Week <- turnstile_data %>%
+    group_by(day_week) %>%
+    summarise(entries = sum(ENTRIESn_hourly))
+
+# however the day of the week and counts are flawed since there is not an even amount of day in the month 
+Day_of_Week_Filtered <- turnstile_data %>%
+    group_by(date_day_week, day_week) %>%
+    summarise(entries = sum(ENTRIESn_hourly)) %>%
+    ungroup() %>%
+    group_by(day_week) %>%
+    mutate(total_days = n(),
+           avg_entries_per_day = sum(entries) / mean(total_days)) %>%
+    select(day_week, total_days, avg_entries_per_day) %>%
+    distinct(day_week, total_days, avg_entries_per_day)
+```
+### Plotting Days of the Week
+```{r}
+day_total <- ggplot(Day_of_Week, aes(day_week, entries, fill = day_week)) + 
+    geom_bar(stat = "identity") + 
+    scale_fill_brewer(palette = "Set2") +
+    theme(axis.text.x = element_text(angle = 45)) + 
+    guides(fill=FALSE) + 
+    scale_y_continuous(labels = comma) + 
+    xlab("") + ylab("Total Entries") + ggtitle("Total Ridership - Day of the Week") + 
+    geom_text(aes(day_week, 500000, label = paste0("Total \nDays: \n", total_days)), size=3 , data=Day_of_Week_Filtered)
+
+day_avg <- ggplot(Day_of_Week_Filtered, aes(day_week, avg_entries_per_day, fill = day_week)) + 
+    geom_bar(stat = "identity") + 
+    scale_fill_brewer(palette = "Set2") +
+    theme(axis.text.x = element_text(angle = 45)) + 
+    guides(fill = FALSE) + 
+    scale_y_continuous(labels=comma) + 
+    xlab("") + ylab("Total Entries") + ggtitle("Average Ridership \nEach Day of the Week") + 
+    geom_text(aes(x=day_week, y=100000, label = paste0("Total \nDays: \n", total_days)), size=3 , data = Day_of_Week_Filtered)
+
+grid.arrange(day_total, day_avg, ncol=2)
+```
+### Hours of the Day
+Plotting for the hours of the day is alittle different than what I expected.  I expected the data to be bi-modal with one peak before work and the other after work. Well, according to the data, it is bi-modal, but the peaks are at around noon and and around 8 pm. 
+```{r}
+Day_of_Week_hour <- turnstile_data %>%
+    group_by(hour_format) %>%
+    summarise(total_entries = sum(ENTRIESn_hourly),
+              n = n(),
+              normalized = total_entries / n)
+```
+### Plot Hours of the Day
+```{r}
+hour_total <- ggplot(Day_of_Week_hour, aes(x = hour_format, y = total_entries,
+                                           fill = hour_format)) +
+    geom_bar(stat = 'identity') + 
+    theme(axis.text.x = element_text(angle=45)) +
+    scale_y_continuous(labels = comma) +
+    scale_fill_brewer(palette = 'Set2') +
+    guides(fill = FALSE) +
+    xlab("") + ylab("Total Entries") + 
+    ggtitle("Total Ridership for each 4-hour Time Period") 
+
+hour_normalized <- ggplot(Day_of_Week_hour, aes(x = hour_format, y = normalized,
+                                           fill = hour_format)) +
+    geom_bar(stat = 'identity') + 
+    theme(axis.text.x = element_text(angle=45)) +
+    scale_y_continuous(labels = comma) +
+    scale_fill_brewer(palette = 'Set2') +
+    guides(fill = FALSE) +
+    xlab("") + ylab("Total Entries") + 
+    ggtitle("Average Ridership for each 4-hour Time Period") 
+
+grid.arrange(hour_total, hour_normalized, ncol = 2)
+```
+### Day and Hour
+Now combining the last two varibales might show some more trends in the data. However, nothing extreme jumps out. Understandingly the normalized entries are just like the the other plots with riderships falling on the weekends from the weekdays.
+```{r}
+Day_of_Week_And_Hour <- turnstile_data %>%
+    group_by(day_week, hour_format) %>%
+    summarise(total_entries = sum(ENTRIESn_hourly), 
+              n = n(),
+              normalized = total_entries / n)
+```
+### Plot Day and Hour
+```{r}
+ggplot(Day_of_Week_And_Hour, aes(hour_format, normalized, fill = hour_format)) +
+    geom_bar(stat = 'identity') +
+    facet_grid(day_week ~ .) +
+    scale_y_continuous(labels = comma) +
+    scale_fill_brewer(palette = 'Set2') +
+    theme(legend.position = 'None') +
+    xlab("") + ylab("Total Entries")
+```
+### Units
+I thought it would be interesting to look at the total number of entries per unit and per location. And as expected some terminals are much more popular than others. Later in this paper, a D3 plot show this is a cooler fashion.
+```{r}
+units <- turnstile_data %>%
+    group_by(UNIT) %>%
+    summarise(total_entries = sum(ENTRIESn_hourly))
+```
+### Plot Units
+```{r}
+unit_vector <- as.character(unique(turnstile_data$UNIT))[seq(1, length(turnstile_data$UNIT), 4)]
+
+ggplot(units, aes(UNIT, total_entries)) +
+    geom_bar(stat = 'identity', fill = 'yellow', color = 'black') +
+    theme(axis.text.x = element_text(angle = 90)) +
+    scale_y_continuous(labels = comma) +
+    scale_x_discrete(breaks = unit_vector, labels = unit_vector) +
+    xlab("Units") + ylab("Total Entries per Unit")
+```
+### Entries Among Stations
+A similar exploration for each station is shown below. Only showing the top 50 stations and their respective names. 
+```{r}
+stations <- turnstile_data %>%
+    group_by(station) %>%
+    summarise(total_entries = sum(ENTRIESn_hourly)) %>%
+    arrange(-total_entries)
+```
+### Plot Entries Among Stations
+```{r}
+ggplot(stations[1:50,], aes(x = reorder(station, -total_entries), total_entries)) +
+    geom_bar(stat = 'identity', fill = 'yellow', color = 'black') +
+    theme(axis.text.x = element_text(angle = 90)) +
+    scale_y_continuous(labels = comma) + 
+    xlab("Station Name") + ylab("Total Entries") +
+    ggtitle("Total Entries for each Station - Top 40 Stations") 
+```
+### Rain Visualization
+Later in the paper it demonstrates that there is evidence of a statistically significant difference between rainy and non-rainy times. Histogram displaying the difference between ENTRIESn_hourly for rainy days and ENTRIESn_hourly for non-rainy days.
+```{r}
+rain <- turnstile_data %>%
+    group_by(datetime, rain) %>%
+    summarise(total_entries = sum(ENTRIESn_hourly))
+```
+### Rain Visualization By Hour
+```{r}
+rain_by_hour <- ggplot(turnstile_data, aes(x=ENTRIESn_hourly, fill=rain, order=-as.numeric(rain))) + 
+  geom_histogram(alpha=1, binwidth=100, color="black") + 
+  coord_cartesian(xlim=c(0,5000), ylim=c(0, 5000)) + 
+  guides(fill=guide_legend("Weather\nCondition")) +
+  scale_y_continuous(breaks=seq(0, 5000, by=1000)) +
+  xlab("Hourly Entries - Bins of Size 100 (Limited to 5000)") + 
+  ylab("Hourly Entries - Frequency per Bin") + 
+  ggtitle("Hourly Entries Histogram - Rain vs. No Rain") 
+
+rain_by_hour  
+```
+### plot Rain Visualization
+Another plot for the rain, this plot is a little different and this plot can actually represent a visual cue that rain it does seem to have an effect whether or not people ride the subway during rainy days. As shown, the blue indicates rain and they are mostly high. 
+```{r}
+rain_time <- ggplot(rain, aes(x=datetime, y=total_entries, fill=rain)) + 
+  geom_histogram(stat="identity", position = 'dodge') +
+  scale_x_datetime(expand=c(0,0), breaks = date_breaks("1 day"), labels = date_format("%m-%d-%y (%a)")) +
+  theme(axis.text.x = element_text(angle = 90)) +
+    coord_flip() +
+  guides(fill = guide_legend("Weather")) +
+  xlab("") + ylab("Total Entries") +
+  ggtitle("Cumulative Ridership per Hour\n Colored by Presence of Rain at Each Unit (Labeled by Day)")
+
+rain_time
+```
+## Statitical Tests
+
+To analysis this data I used the Mann-Whitney U-Test test.
+
+A two-tail p-value was also used as no prior assumptions are made about the contrast in the distributions of ridership on rainy and non-rainy days.
+
+hypothesis
+- NULL ( ENTRIESn_hourlyrainy ) and ( ENTRIESn_hourlynon − rainy ) are same
+- ALT ( ENTRIESn_hourlyrainy ) and ( ENTRIESn_hourlynon − rainy ) differ by a location shift μ and μ≠0
+
+p-critical value 
+- α = 0.05
+
+This test is applicable to the dataset because the Mann-Whitney U-Test tests the null hypothesis that the two samples being compared are derived from the same population. The Mann–Whitney U test is a non-parametric test that is good for testing whether a particular population tends to have larger values than the other.
+This null hypothesis allows us to test whether there is a statistically significant difference in ridership on rainy and non-rainy days. Furthermore, exploratory data analysis has shown that the data is not normally distributed. The Mann-Whitney U-Test does not assume normality of the data, making this test appropriate.
+```{r}
+rainy_days <- turnstile_data$ENTRIESn_hourly[turnstile_data$rain == 'Rain']
+without_rain_days <- turnstile_data$ENTRIESn_hourly[turnstile_data$rain == 'No Rain']
+
+rainy_day_median <- median(rainy_days)
+without_rain_day_median <- median(without_rain_days)
+
+man_witney_test = wilcox.test(rainy_days, without_rain_days, alternative = 'two.sided')
+u_value = man_witney_test$statistic
+p_value = man_witney_test$p.value
+```
+Since in reporting the results of a Mann–Whitney test, it is important to state:
+
+- A measure of the central tendencies of the two groups (means or medians; since the Mann–Whitney is an ordinal test, with medians usually recommended)
+- The value of U
+- The sample sizes
+- The significance level.
+```{r}
+df <- data.frame(rainy_day_median, without_rain_day_median, u_value, p_value)
+print(df)
+alpha = 0.05
+ifelse(p_value < alpha, 'Reject Null Hypothesis', 'Fail to Reject Null Hypothesis')
+```
+So with α = 0.05, and the p-value being so low we would Reject the Null Hypothesis. Meaning the distribution between rainy and non_rainy is statisticly different.
+
+## Linear Regression
+
+### Creating Dummy Variables
+It turns out that alot of the variance can be explained by these factor/dummy varibales.
+```{r}
+unit_factor <- factor(turnstile_data$UNIT)
+day_week_factor <- factor(turnstile_data$day_week)
+hour_factor <- factor(turnstile_data$hour_format)
+
+f1 <- model.matrix(~ unit_factor -1)
+f2 <- model.matrix(~ day_week_factor -1)
+f3 <- model.matrix(~ hour_factor -1)
+```
+### Creating Interaction Variables
+Here we add interaction terms and continue to use model.matrix to have it be able to work with OLS and possibly Gradient Descent with constructing the X/predictors with the response/Y being ENTRIESn_hourly.
+```{r}
+unit_day <- paste0(as.character(turnstile_data$UNIT), '_' , as.character(turnstile_data$day_week))
+unit_hour <- paste0(as.character(turnstile_data$UNIT), '_' , as.character(turnstile_data$hour_format))
+day_hour <- paste0(as.character(turnstile_data$day_week), '_' , as.character(turnstile_data$hour_format))
+
+f4 <- model.matrix(~factor(unit_day) -1)
+f5 <- model.matrix(~factor(unit_hour) -1)
+f6 <- model.matrix(~factor(day_hour) -1)
+
+dummy_features <- cbind(f1,f2,f3,f4,f5,f6)
+
+features <- cbind(1, matrix(dummy_features))
+```
+
+### R2 and Adjusted R2
+R2=1−∑i=1m(observedi−predictedi)2∑i=1m(observedi−mean(observed))2
+
+R2=1−∑i=1m(yi−h(xi))2∑i=1m(yi−y¯i)2
+
+The R-Squared can be seen as the percent of variance explained by the model.
+
+Adjusted R2 is computed as: 1−(1−R2)n−1n−p−1
+
+The adjusted R-squared is a modified version of R-squared that has been adjusted for the number of predictors in the model. The adjusted R-squared increases only if the new term improves the model more than would be expected by chance. Therefore the adj R-squared is a better measure of fit since it will put a penalty on adding more to the model.
+```{r}
+r_squared <- function(y, pred) {
+    RSS <- sum((y - pred )^2)
+    TSS <- sum((y - mean(y))^2)
+    r_sq <- 1 - (RSS / TSS)
+}
+
+adj_r_squared <- function(r_sq, num_examples, num_features) {
+    adj_r <- 1 - (1 - r_sq) * ((num_examples - 1) / (num_examples - num_features - 1))
+    return(adj_r)
+}
+```
+### Train Test Split
+Split the data into two sets, train on one and can test on the other, using 80% for train and the 20% for testing. I probably should have donw this pre-EDA but it wont hurt too much.
+```{r}
+set.seed(100)
+split <- sample.split(turnstile_data$ENTRIESn_hourly, 0.7)
+train_df <- subset(turnstile_data, split == TRUE)
+test_df <- subset(turnstile_data, split == FALSE)
+```
+### Linear Models
+Fitting models can be complicated and I used somewhat of a personalized forward selection process and ended with model4 with interaction terms between the dummy variables, and I also threw in a few more rain variables.   
+```{r}
+#########  test <- turnstile_data[-inTrain,]
+train_predictors <- train_df %>%
+    select(ENTRIESn_hourly, hour_format, day_week, UNIT, precipi, pressurei, tempi)
+
+model1 <- lm(ENTRIESn_hourly ~ UNIT, data = train_predictors)
+model2 <- lm(ENTRIESn_hourly ~ UNIT + hour_format, data = train_predictors)
+model3 <- lm(ENTRIESn_hourly ~ UNIT + hour_format + day_week, data = train_predictors)
+model4 <- lm(ENTRIESn_hourly ~ UNIT*hour_format + hour_format:day_week + UNIT:day_week + day_week + precipi + pressurei + tempi, data = train_predictors)
+
+stargazer(model1, model2, model3, model4, title = 'Regression Results', header = FALSE, single.row = TRUE, type = "html", font.size = "tiny", digits.extra = 4, digits = 4, keep="NULL", column.labels = c("UNIT only", "add 'hour'", "add 'day of week'", "add interactions"))
+```
+### Evaluating Model Fits
+This model is definitely not very comprehensive however it does result in a decent r2 and adj r2. 
+```{r}
+train_pred <- predict(model4, train_df)
+train_y <- train_df$ENTRIESn_hourly
+
+train_r_squared <- r_squared(train_y, train_pred)
+train_r_squared
+
+train_adjusted_R_squared <- adj_r_squared(train_r_squared, dim(train_df)[1], length(coef(model4))-1)
+train_adjusted_R_squared
+```
+
+```{r}
+test_pred <- predict(model4, newdata = test_df)
+test_y <- test_df$ENTRIESn_hourly
+
+test_r_squared <- r_squared(test_y, test_pred)
+test_r_squared
+```
+Mean Squared Error measures the average of the squares of the "errors", that is, the difference between the estimator and what is estimated
+
+MSE=1m∑i=1m(yi−ŷ i)2
+
+Also square rooting the MSE puts it in more common terms
+```{r}
+MSE <- function(pred, actual){
+  return( mean( (pred-actual)^2 ) )
+}
+
+train_MSE <- MSE(train_pred, train_y)
+# Root Mean Squared Error
+sqrt(train_MSE)
+
+test_MSE <- MSE(test_pred, test_y)
+# Root Mean Squared Error
+sqrt(test_MSE)
+```
+### Training Residuals
+A usefull way to further explore the model fit is to plot the residuals from the predicted model fit. This can be done by simply ploting the model in R but doing it here is more effective. Plots of the residuals show somewhat of a normal distributions with compression close to 0, and fanning out at the upper ends. This also shows an under-prediction for higher ridership levels.
+```{r}
+pred <- predict(model4)
+
+p1 <- ggplot() + geom_histogram(aes(model4$residuals), binwidth = 200) +
+    xlab('Residuals') + ylab('Frequencies') +
+    ggtitle('Histogram of Residuals - Training Set')
+
+p2 <- ggplot() + geom_point(aes(pred, model4$residuals)) +
+  geom_hline(yintercept = 0, linetype = 'dotted', size = 1.2, color = 'red') + 
+  xlab('Predictions') + ylab('Residuals') + 
+    ggtitle('Residuals against Predictions - Training Set')
+
+p3 <- ggplot() + geom_point(aes(pred, train_df$ENTRIESn_hourly)) + 
+  geom_abline(slope = 1, linetype = 'dotted', color = 'red', size = 1.2) + 
+  xlab("Predictions") + ylab("Actual Hourly Entries") + 
+    ggtitle("Predictions against Hourly Entries - Training Set")
+
+p4 <- ggplot() + geom_point(aes(1:nrow(train_df), model4$residuals), data = train_df) +
+  geom_hline(yintercept = 0, linetype = 'dotted', size = 1.2, color = 'red') + 
+  xlab('Index') + ylab('Residuals') + 
+    ggtitle('Residuals in Sequential Order\nPer Hour Per Unit - Training Set')
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+### Test Residuals
+You can also plot the testing residuals for the data as well. Plotting the testing resids shows more of a true understanding on the true predictive power of the model as this data was never seen before.
+```{r}
+test_resid <- test_y - test_pred
+
+pl1 <- ggplot() + geom_histogram(aes(test_resid), binwidth = 200) +
+    xlab('Residuals') + ylab('Frequencies') + xlim(c(-20000, 20000)) +
+    ggtitle('Histogram of Residuals - Training Set')
+
+pl2 <- ggplot() + geom_point(aes(test_pred, test_resid)) +
+  geom_hline(yintercept = 0, linetype = 'dotted', size = 1.2, color = 'red') + 
+  xlab('Predictions') + ylab('Residuals') + 
+    ggtitle('Residuals against Predictions - Training Set')
+
+pl3 <- ggplot() + geom_point(aes(test_pred, test_y)) + 
+  geom_abline(slope = 1, linetype = 'dotted', color = 'red', size = 1.2) + 
+  xlab("Predictions") + ylab("Actual Hourly Entries") + 
+    ggtitle("Predictions against Hourly Entries - Training Set")
+
+pl4 <- ggplot() + geom_point(aes(1:nrow(test_df), test_resid), data = test_df) +
+  geom_hline(yintercept = 0, linetype = 'dotted', size = 1.2, color = 'red') + 
+  xlab('Index') + ylab('Residuals') + 
+    ggtitle('Residuals in Sequential Order\nPer Hour Per Unit - Training Set')
+
+grid.arrange(pl1, pl2, pl3, pl4, ncol = 2)
+```
+## Summary 
+By fitting this model, we achieved a fairly decent R^2 and root mean squared error. However, this data probably needs to be examined further with different model types and different machine learning algorithms such as support vector machines or non-linear splines.  Or needing a more comprehensive model can use decision trees.
+
+### Analysis
+
+So the original question was do more people ride the NYC subway when it is raining or when it is not raining?
+
+From my analysis and interpretation of the data, I have concluded from the result of the Mann–Whitney U test, the two-tailed p-value is 5.48213914249e-06, which indicates the probability of the distributions of ENTRIESn_hourlyrainy and ENTRIESn_hourlynon−rainy are the same is less than α. There is a statistical significant difference between the riderships of rainy and non-rainy days. Furthermore, all the descriptive listed (including 1st quartile, median, mean and 3rd quartile) of rainy days are greater than those of non-rainy days and the same information also shows in the histagrams and box plots. Therefore, I conclude that there are more people will ride the NYC subway when it is raining versus when it is not raining.
+
+## Further Exploration / Cool Stuff
+
+### Displaying Stations with Location
+By using the leaflet library in R we can use a OpenStreetMap Api and JavaScript D3 to create a fully awesome visual to display the lat / lon of the area. Explaing the map the weather stations are shown with purple circles, and subway stations are shown in green. Where the size of the circle represents the total ridership for each station.
+You can also click on the icons to display the total entries and station names. 
+```{r}
+lat_lon <- turnstile_data %>%
+    group_by(longitude, latitude, station) %>%
+    summarise(entries = sum(ENTRIESn_hourly)) %>%
+    ungroup() %>%
+    arrange(-entries) %>%
+    mutate(station = paste0('Station-', station), 
+           icon = paste0(station, "<br />Total Entries: ", comma(entries)))
+
+weather_dim <- turnstile_data %>%
+    mutate(weather_station = factor(abs(weather_lon) + abs(weather_lat))) %>%
+    mutate(weather_station = as.factor(as.numeric(weather_station))) %>%
+    group_by(weather_lon, weather_lat, weather_station) %>%
+    summarise(entries = sum(ENTRIESn_hourly)) %>%
+    ungroup() %>%
+    arrange(-entries) %>%
+    mutate(weather_station = paste0('Weather Station-', weather_station), 
+           icon = paste0(weather_station, "<br />Total Entries of Recorded Stations: ", comma(entries)))
+
+library(leaflet)
+col1 = colorQuantile(palette = 'YlGn', domain = NULL, n = 8)
+col2 = colorQuantile(palette = 'RdPu', domain = NULL, n = 8)
+
+m <- leaflet(lat_lon) %>%
+      addTiles() %>%
+      addCircleMarkers(data=weather_dim, lng= ~weather_lon, lat=~weather_lat,
+                       radius = ~entries/sum(entries)*100,
+                       color= ~col2(entries),
+                       opacity= ~entries/sum(entries)*100,
+                       popup= ~icon) %>%
+      addCircleMarkers(radius = ~entries/sum(entries)*200, 
+                       color = ~col1(entries),
+                       opacity= ~entries/sum(entries)*200,
+                       popup = ~icon) %>%
+      setView(lng= -73.92, lat=40.73, zoom = 12)
+m
+```
+
+
