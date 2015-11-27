@@ -17,3 +17,7 @@ Sabermetrics
 Predicting Playoff Teams
 - EDA to predict statistics which influence playoff appearances and wins using Lahman’s Baseball Database and implementing Machine Learning 
 - R, Exploratory Data Analysis, Data Visualization, Predictive Analytics
+
+Enron
+- Sklearn machine learning detecting enron frauds
+- Python, sklearn, pandas, numpy
