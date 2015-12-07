@@ -12,11 +12,11 @@ from statistics import mode
 from nltk.tokenize import word_tokenize
 
 
-
 class VoteClassifier(ClassifierI):
     def __init__(self, *classifiers):
         self._classifiers = classifiers
 
+    # classify post based on the mode (most common) decision by classifiers
     def classify(self, features):
         votes = []
         for c in self._classifiers:
@@ -24,6 +24,7 @@ class VoteClassifier(ClassifierI):
             votes.append(v)
         return mode(votes)
 
+    # compute percent confidence of classifiers
     def confidence(self, features):
         votes = []
         for c in self._classifiers:
@@ -35,12 +36,12 @@ class VoteClassifier(ClassifierI):
         return conf
 
 
+# read in pickle documents 
 documents_f = open("pickled_clfs/documents.pickle", "rb")
 documents = pickle.load(documents_f)
 documents_f.close()
 
-
-
+# read in pickle word features
 word_features5k_f = open("pickled_clfs/word_features5k.pickle", "rb")
 word_features = pickle.load(word_features5k_f)
 word_features5k_f.close()
@@ -55,7 +56,6 @@ def find_features(document):
     return features
 
 
-
 # feature_set_f = open("pickled_clfs/featuresets.pickle", "rb")
 # feature_set = pickle.load(feature_set_f)
 # feature_set_f.close()
@@ -66,6 +66,7 @@ def find_features(document):
 # X_test = feature_set[10000:]
 # X_train = feature_set[:10000]
 
+# open all pickle classifieres
 def open_file(filename):
     open_file = open('pickled_clfs/' + filename + '.pickle', 'rb')
     clf = pickle.load(open_file)
@@ -84,7 +85,7 @@ LinearSVC_classifier = open_file('LinearSVC')
 
 SGDC_classifier = open_file('SGDClassifier')
 
-
+# pass in classifiers to Class VoteClassifier to compute label and confidence
 voted_classifier = VoteClassifier(
                                   classifier,
                                   LinearSVC_classifier,
@@ -93,7 +94,9 @@ voted_classifier = VoteClassifier(
                                   LogisticRegression_classifier)
 
 
-
+# run sentiment 
 def sentiment(text):
     feats = find_features(text)
-    return voted_classifier.classify(feats),voted_classifier.confidence(feats)
+    return voted_classifier.classify(feats), voted_classifier.confidence(feats)
+
+
