@@ -19,6 +19,7 @@ class VoteClassifier(ClassifierI):
     def __init__(self, *classifiers):
         self._classifiers = classifiers
 
+    # classify post based on the mode (most common) decision by classifiers
     def classify(self, features):
         votes = []
         for c in self._classifiers:
@@ -26,6 +27,7 @@ class VoteClassifier(ClassifierI):
             votes.append(v)
         return mode(votes)
 
+    # compute percent confidence of classifiers 
     def confidence(self, features):
         votes = []
         for c in self._classifiers:
@@ -36,15 +38,16 @@ class VoteClassifier(ClassifierI):
         conf = choice_votes / len(votes)
         return conf
     
+# read in data    
 short_pos = open("review_data/short_review_pos.txt","r").read().decode('utf-8')
 short_neg = open("review_data/short_review_neg.txt","r").read().decode('utf-8')
 
 all_words = []
 documents = []
 
-
-#  j is adject, r is adverb, and v is verb
-#allowed_word_types = ["J","R","V"]
+# fill words and documents from text files 
+#  J is adject, R is adverb, and V is verb
+# allowed_word_types = ["J","R","V"]
 allowed_word_types = ["J"]
 
 for p in short_pos.split('\n'):
@@ -73,15 +76,17 @@ save_documents.close()
 
 all_words = nltk.FreqDist(all_words)
 
+# use top 5000 words as features 
 # word_features = list(all_words.keys())[:5000]
 word_features = [w for (w, c) in all_words.most_common(5000)]
 
-
+# pickle word features
 save_word_features = open("pickled_clfs/word_features5k.pickle","wb")
 pickle.dump(word_features, save_word_features)
 save_word_features.close()
 
 
+# create features 
 def find_features(document):
     words = word_tokenize(document)
     features = {}
@@ -92,25 +97,27 @@ def find_features(document):
 
 feature_set = [(find_features(rev), category) for (rev, category) in documents]
 
+# shuffle features
 random.shuffle(feature_set)
 print len(feature_set) 
 
+# train / test sets
 X_test = feature_set[10000:]
 X_train = feature_set[:10000]
 
 
-
+# NLTK NAIVE BAYES
 classifier = nltk.NaiveBayesClassifier.train(X_train)
 print nltk.classify.accuracy(classifier, X_test)
 # classifier.show_most_informative_features(15)
-
-
 save_classifier = open("pickled_clfs/originalnaivebayes.pickle","wb")
 pickle.dump(classifier, save_classifier)
 save_classifier.close()
 
 ###############
+# SKLEARN CLASSIFIERS 
 
+# train desired classifier 
 def train_classifier(clf_name, train, test, name):
     out_folder = 'pickled_clfs/'
     clf = SklearnClassifier(clf_name)
@@ -118,6 +125,7 @@ def train_classifier(clf_name, train, test, name):
     print nltk.classify.accuracy(clf, test)
     return clf
 
+# pickle desired classifier after train so only have to run once
 def pickle_classifier(clf_name, train, test, name):
     clf_title = train_classifier(clf_name, X_train, X_test, 'MultinomialNB')
     out_folder = 'pickled_clfs/'
