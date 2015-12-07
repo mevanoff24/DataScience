@@ -22,7 +22,8 @@ class listener(StreamListener):
 
         print (tweet, sentiment_value, confidence)
 
-        if confidence * 100 >= 80:
+        # only output twiiter feed if 4 of 5 classifiers classify the same 
+        if confidence  >= 0.80:
         		output = open('twitter-out.txt', 'a')
         		output.write(sentiment_value)
         		output.write('\n')
