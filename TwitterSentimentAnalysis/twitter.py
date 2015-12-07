@@ -7,10 +7,10 @@ from tweepy.streaming import StreamListener
 import json
 
 
-ckey = 'EWHuKKIRjU0t5AiXccJoL6b29'
-csecret = '6WOl7Vcy8tY988FXhmr2eYp4tl5e473VMGGtQAwcr93k5LDw0U'
-atoken = '2811896983-cgcAQDeUDohFN5OsD93A8nU1z9BwDHycESn91fc'
-asecret = 'oMeA11tszQM5RAvGEgCgqcDleueUgVvRdUPli0Lo1ZIjg'
+ckey = CKEY
+csecret = CSECRET
+atoken = ATOKEN
+asecret = ASECRET
 
 class listener(StreamListener):
 
