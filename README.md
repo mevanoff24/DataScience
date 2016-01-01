@@ -10,6 +10,9 @@
 - Analyzed NYC data. Do more people ride the subway when it is raining? 
 - R and Python, Statistical Tests, Linear Regression, Data Visualization, Data Wrangling, Predictions, Feature Selection, D3
 
+#### MovieRecommendation
+- Item based collaboritve filter algorithm computing similarity between movies in big dataset and recommed movies based watched movies
+- Apache Spark, Big Data
 #### Sabermetrics
 - Created the perfect team using data manipulation and predicted how many games the newly formed team wins under a set salary cap
 - Python, Data Wrangling, Pandas, Numpy, Visualizations
