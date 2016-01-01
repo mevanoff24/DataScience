@@ -11,7 +11,7 @@
 - R and Python, Statistical Tests, Linear Regression, Data Visualization, Data Wrangling, Predictions, Feature Selection, D3
 
 #### MovieRecommendation
-- Item based collaboritve filter algorithm computing similarity between movies in big dataset and recommed movies based watched movies
+- Scalable Item-based collaboritve filter algorithm computing similarity between movies in big dataset and recommed movies based on watched movies
 - Apache Spark, Big Data
 
 #### Sabermetrics
