@@ -2,27 +2,22 @@ from pyspark import SparkConf, SparkContext
 import sys
 from math import sqrt
 
-# pseudoCode
 
-# 1 - load txt files 
-# 2 - split data into (userID, movieID, rating)
-# 3 - self-join all movies and create all possible combinations of movie pairs
-# 4 - remove all duplicate movie pairs
-# 5 - combine movies
-# 6 - computed similarities between movies 
-# 7 - set thresholds and sort keys and only return movies that meet criteria
-# 8 - make action, map movieID => movieName and display results  
+# To run on EMR successfully + output results for Star Wars:
+# aws s3 cp s3://sundog-spark/MovieSimilarities1M.py ./
+# aws s3 cp s3://sundog-spark/ml-1m/movies.dat ./
+# spark-submit --executor-memory 1g MovieSimilarities1M.py 260
 
 
-# set config
-conf = SparkConf().setMaster('local[*]').setAppName('MovieSimilarity')
+# set config / empty for AWS EMR Hadoop YARN -- in terminall add --executor-memory 1g for each executor
+conf = SparkConf()
 sc = SparkContext(conf = conf)
 
 def loadMovieNames():
 	movieNames = {}
-	with open('data/ml-100k/u.ITEM') as f:
+	with open('data/ml-1m/movies.dat') as f:
 		for line in f:
-			fields = line.split('|')
+			fields = line.split('::')
 			movieNames[int(fields[0])] = fields[1].decode('ascii', 'ignore')
 	return movieNames
 
@@ -62,27 +57,26 @@ def computeCosineSimilarity(ratingPairs):
 
 nameDict = loadMovieNames()
 
-data = sc.textFile('data/ml-100k/u.data')
+data = sc.textFile('s3n://sundog-spark/ml-1m/ratings.dat')
 
 # returns (userID, movieID, rating)
 ratings = (data
-		  .map(lambda x: x.split())
+		  .map(lambda x: x.split('::'))
 		  .map(lambda x: (int(x[0]), (int(x[1]), float(x[2]))))
-		  .partitionBy(100))
+		  )
 
 # self-join for every possilbe combination of movies
 # returns (userID, ((movieID, rating), (movieID, rating)))
 # sample  (512, ((265, 4.0), (265, 4.0)))
-joinedRatings = ratings.join(ratings)
+ratingsPartitioned = ratings.partitionBy(100)
+joinedRatings = ratingsPartitioned.join(ratingsPartitioned)
 
 # remove duplicate movies after self-join
 uniqueJoinedRatings = joinedRatings.filter(filterDups)
 
-# create all movies pairs
+# create all movies pairs and partition
 # returns ((movie1, movie2), (rating1, rating2))
-moviePairs = (uniqueJoinedRatings
-						.map(makePairs)
-						.partitionBy(100))
+moviePairs = uniqueJoinedRatings.map(makePairs).partitionBy(100)
 
 # combine unique movie ratings
 moviePairRatings = moviePairs.groupByKey()
