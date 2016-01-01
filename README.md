@@ -21,3 +21,8 @@
 #### Enron
 - Sklearn machine learning detecting enron frauds
 - Python, sklearn, pandas, numpy
+
+#### Twitter Sentiment Analysis
+- Classifing twitter streams as positive / negitive
+- Python, NLTK, Machine Learning 
+
