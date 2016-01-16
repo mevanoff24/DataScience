@@ -2,6 +2,11 @@
 
 ## All My Published Projects
 
+#### San Francisco Crime Classification
+• Perform Exploratory Data Analysis and Predict Crime Category
+• Python, Advanced EDA, Advanced Machine Learning, Stats, Ensemble Learning, Data Mining, Feature Extraction, Scikit-learn, Pandas, Numpy
+
+
 #### Geodemographic Segmentation Analysis
 - Real world problem detecting why customers are leaving their bank
 - Python, Bayesian, A/B Tests, Data Mining, Predictive Modeling
