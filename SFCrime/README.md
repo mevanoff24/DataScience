@@ -7,3 +7,16 @@ Today, the city is known more for its tech scene than its criminal past. But, wi
 
 From Sunset to SOMA, and Marina to Excelsior, this competition's dataset provides nearly 12 years of crime reports from across all of San Francisco's neighborhoods. Given time and location, you must predict the category of crime that occurred.
 What can we learn about the city through visualizations?
+
+Techniques Used:
+- Python 
+- Advanced EDA
+- Advanced Machine Learning
+- Stats
+- Ensemble Learning
+- Data Mining
+- Feature Extraction
+- Scikit-learn
+- Pandas
+- Numpy
+
