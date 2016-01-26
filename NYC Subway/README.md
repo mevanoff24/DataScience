@@ -12,7 +12,7 @@ I worked on this data subset to draw an interesting conclusion about the dataset
 - R
 
 #### Link to RPUBS for R Project Markdown
-https://rpubs.com/mevanoff24/107775
+[NYC_R](https://rpubs.com/mevanoff24/107775)
 
 ###Techniques used in this project:
 
