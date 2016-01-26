@@ -31,9 +31,9 @@ Handmade Stock Analysis plot. With Matplotlib create the typical stock analysis 
 - Python, Plotting, Advanced Matplotlib, Pandas IO, Numpy, Custom Visulization
 
 #### Sabermetrics
-- Created the perfect team using data manipulation and predicted how many games the newly formed team wins under a set salary cap
+Created the perfect team using data manipulation and predicted how many games the newly formed team wins under a set salary cap
 - Python, Data Wrangling, Pandas, Numpy, Visualizations
 
 #### Predicting Playoff Teams
-- EDA to predict statistics which influence playoff appearances and wins using Lahman’s Baseball Database and implementing Machine Learning 
+Exploratory Data Analysis to predict statistics which influence playoff appearances and wins using Lahman’s Baseball Database and implementing Machine Learning 
 - R, Exploratory Data Analysis, Data Visualization, Predictive Analytics
