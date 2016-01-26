@@ -9,6 +9,7 @@ Geodemographic segmentation is a multivariate statistical classification techniq
 ### Techniques used in project:
 - Python
 - Bayesian Inference
-- A/B Tests
+- Stats
+- Custom A/B Tests
 - Data Mining
 - Predictive Modeling
