@@ -8,7 +8,7 @@ Enron started life as a regional natural gas pipeline company, the result of a m
 
 The Enron scandal, revealed in October 2001, eventually led to the bankruptcy of the Enron Corporation, an American energy company based in Houston, Texas, and the de facto dissolution of Arthur Andersen, which was one of the five largest audit and accountancy partnerships in the world.
 
-Techniques used in project:
+### Techniques used in project:
 - Python
 - Sklearn
 - Machine Learning
