@@ -3,20 +3,32 @@
 ## All My Published Projects
 
 #### San Francisco Crime Classification
-- Perform Exploratory Data Analysis and Predict Crime Category
+Perform exploratory data analysis and predict the category of crime that occurred in the city by the bay.
 - Python, Advanced EDA, Advanced Machine Learning, Stats, Ensemble Learning, Data Mining, Feature Extraction, Scikit-learn, Pandas, Numpy
 
 #### Geodemographic Segmentation Analysis
-- Real world problem detecting why customers are leaving their bank
-- Python, Bayesian, A/B Tests, Data Mining, Predictive Modeling
+We are having a problem with customers leaving our bank. We need to find out why. Determine which factors influence customer churn.
+- Python, Bayesian Inference, Stats, Custom A/B Tests, Data Mining, Modeling
 
 #### NYC Subway
-- Analyzed NYC data. Do more people ride the subway when it is raining? 
+Analyizing NYC Subway data taken in May, 2011. Answeing the question: Do more people ride the subway when it is raining versus when it is not raining? 
 - R and Python, Statistical Tests, Linear Regression, Data Visualization, Data Wrangling, Predictions, Feature Selection, D3
 
+#### Twitter Sentiment Analysis
+Built an ensemble Sentiment Analysis tool which classifies tweets as positive or negative using the Twitter REST API. Live updating real time graph of the current sentiment trend.
+- Python, NLTK, Sklearn, Ensemble Voting, Twitter API, Real Time Analysis, Live Updating Graph
+
 #### MovieRecommendation
-- Scalable Item-based collaboritve filter algorithm computing similarity between movies in big dataset and recommed movies based on watched movies
-- Apache Spark, Big Data
+Scalable Item-based collaboritve filter algorithm computing similarity between movies using Big Data. Recommed movies based on previous watched movies.
+- Apache Spark, Big Data, Python, MLLib, ALS
+
+#### Enron
+Flag individuals at Enron who look like they should be persons of interest in the Federal fraud investigation that resulted when the company went bankrupt.
+- Python, Sklearn, Machine Learning, Feature Extraction, Pandas, Classification Metrics, Model Tuning
+
+#### Stock Analysis
+Handmade Stock Analysis plot. With Matplotlib create the typical stock analysis plot with candlestick, rolling means, MACD, RSI, and Volume plots.
+- Python, Plotting, Advanced Matplotlib, Pandas IO, Numpy, Custom Visulization
 
 #### Sabermetrics
 - Created the perfect team using data manipulation and predicted how many games the newly formed team wins under a set salary cap
@@ -25,12 +37,3 @@
 #### Predicting Playoff Teams
 - EDA to predict statistics which influence playoff appearances and wins using Lahman’s Baseball Database and implementing Machine Learning 
 - R, Exploratory Data Analysis, Data Visualization, Predictive Analytics
-
-#### Enron
-- Sklearn machine learning detecting enron frauds
-- Python, sklearn, pandas, numpy
-
-#### Twitter Sentiment Analysis
-- Classifing twitter streams as positive / negitive
-- Python, NLTK, Machine Learning 
-
