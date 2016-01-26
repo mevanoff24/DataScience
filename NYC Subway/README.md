@@ -7,12 +7,9 @@ In this project I will be analyizing MTA New York City Subway data taken from th
 I worked on this data subset to draw an interesting conclusion about the dataset itself with the key question of: Do more people ride the subway when it is raining versus when it is not raining.
 
 
-### 2 different implementations
-- Python
-- R
-
-#### Link to RPUBS for R Project Markdown
-[NYC_R](https://rpubs.com/mevanoff24/107775)
+### 2 different implementations: Links
+- Python [-->](https://github.com/mevanoff24/DataScience/blob/master/NYC%20Subway/NYC%20Subway.ipynb)
+- R [-->](https://rpubs.com/mevanoff24/107775)
 
 ###Techniques used in this project:
 
