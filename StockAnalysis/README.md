@@ -2,7 +2,9 @@
 
 ### Description 
 
-Handmade Stock Analysis plot. With Matplotlib create the typical stock analysis plot with candlestick, rolling means, MACD, RSI, and Volume plots.
+Handmade Stock Analysis plot. 
+
+With Matplotlib create the typical stock analysis plot with candlestick, rolling means, MACD, RSI, and Volume plots.
 
 ### Personal Usage
 ###### First
