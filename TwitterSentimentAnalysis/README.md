@@ -6,7 +6,9 @@ Built an ensemble Sentiment Analysis tool which classifies tweets as positive or
 
 ### Personal Usage
 
-`git clone <repository>`
+```
+git clone <repository>
+```
 
 From `twitter.py` twitter Stream `twitterStream.filter(track = [<desired term>])`
 
