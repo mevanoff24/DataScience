@@ -5,11 +5,17 @@ Scalable Item-based collaboritve filter algorithm computing similarity between m
 
 ### Personal Usage
 
-`pip install Apache-Spark`
+```
+pip install Apache-Spark
+```
 
-`clone repo`
-
-run `spark-submit <desired movie name>`
+```
+git clone repo
+```
+run 
+```
+spark-submit <desired movie name>
+```
 
 Get results
 
