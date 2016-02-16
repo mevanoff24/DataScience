@@ -10,7 +10,7 @@ pip install Apache-Spark
 ```
 
 ```
-git clone repo
+git clone <repo>
 ```
 run 
 ```
