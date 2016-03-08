@@ -8,4 +8,8 @@
 `Numpy`
 
 ## Results 
-This classifier run 200 times through the data, using a batch size of 64 results in 99% accuracy on the test data
+This classifier run 200 times through the data in about two and half hours using a batch size of 64.
+results 
+```
+step 27071, loss 0.0273262, acc 0.995312
+```
