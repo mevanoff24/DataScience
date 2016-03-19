@@ -43,3 +43,8 @@ Created the perfect team using data manipulation and predicted how many games th
 #### Predicting Playoff Teams
 Exploratory Data Analysis to predict statistics which influence playoff appearances and wins using Lahman’s Baseball Database and implementing Machine Learning 
 - R, Exploratory Data Analysis, Data Visualization, Predictive Analytics
+ 
+
+#### Deep Learning
+Sentiment Analysis using a convolutional neural network
+- Tensorflow, numpy, sklearn, pandas
