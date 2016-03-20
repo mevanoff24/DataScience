@@ -46,5 +46,5 @@ Exploratory Data Analysis to predict statistics which influence playoff appearan
  
 
 #### Deep Learning
-Sentiment Analysis using a convolutional neural network
+Sentiment Analysis using a deep convolutional neural network with Tensorflow
 - Tensorflow, numpy, sklearn, pandas
