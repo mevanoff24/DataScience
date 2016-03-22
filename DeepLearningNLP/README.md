@@ -8,7 +8,7 @@
 `Numpy`
 
 ### Data
-Positive anf Negative movie review
+Positive and Negative movie review
 
 ## Results 
 This classifier run 200 times through the data in about two and half hours using a batch size of 64.
