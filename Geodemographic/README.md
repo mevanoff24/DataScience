@@ -8,7 +8,7 @@ Geodemographic segmentation is a multivariate statistical classification techniq
 
 ### Data
 ##### Features
-RowNumber,CustomerId,Surname,CreditScore,Geography,Gender,Age,Tenure,Balance,NumOfProducts,HasCrCard,IsActiveMember,EstimatedSalary,
+RowNumber,CustomerId,Surname,CreditScore,Geography,Gender,Age,Tenure,Balance,NumOfProducts,HasCrCard,IsActiveMember,EstimatedSalary
 ##### Target
 Exited
 
