@@ -2,7 +2,7 @@
 
 ## All My Published Projects
 
-### Description of Repository
+#### Description of Repository
 This is a place to put all of my custom Data Science Projects. Fork the entire repository for access to all projects with command 
 ```
 git clone https://github.com/mevanoff24/DataScience.git
@@ -11,6 +11,10 @@ git clone https://github.com/mevanoff24/DataScience.git
 #### San Francisco Crime Classification
 Perform exploratory data analysis and predict the category of crime that occurred in the city by the bay.
 - Python, Advanced EDA, Advanced Machine Learning, Stats, Ensemble Learning, Data Mining, Feature Extraction, Scikit-learn, Pandas, Numpy
+
+#### Deep Learning
+Sentiment Analysis using a deep convolutional neural network with Tensorflow on movie review data
+- Tensorflow, numpy, sklearn, pandas
 
 #### Geodemographic Segmentation Analysis
 We are having a problem with customers leaving our bank. We need to find out why. Determine which factors influence customer churn.
@@ -44,6 +48,4 @@ Created the perfect team using data manipulation and predicted how many games th
 Exploratory Data Analysis to predict statistics which influence playoff appearances and wins using Lahman’s Baseball Database and implementing Machine Learning 
 - R, Exploratory Data Analysis, Data Visualization, Predictive Analytics
  
-#### Deep Learning
-Sentiment Analysis using a deep convolutional neural network with Tensorflow on movie review data
-- Tensorflow, numpy, sklearn, pandas
+
